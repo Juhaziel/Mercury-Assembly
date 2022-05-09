@@ -9,7 +9,7 @@ Its basic features are:
 	- Mathematical evaluations
 	- Preprocessor
 
-[Preprocessor]
+[Preprocessor] (NOT IMPLEMENTED YET)
 	The preprocessor executes preprocessor directives (copy/paste operations) on source code and
 	outputs the modified source code. Source files with preprocessor directives cannot be directly
 	processed by the assembler; they must be run through the preprocessor first.
@@ -214,7 +214,7 @@ Its basic features are:
 	
 	More information, along with assembly opcodes, can be found in the CPU documentation.
 
-[Preprocessor Directives]
+[Preprocessor Directives] (NOT IMPLEMENTED YET)
 	#include filepath
 		Copies the contents of of file "filepath" into the file.
 	
