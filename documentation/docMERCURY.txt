@@ -1,0 +1,782 @@
+Mercury Instruction set
+
+Just like its predecessor, this is a LOAD-STORE architecture.
+Data transfer instructions have full access to all addressing modes.
+ALU and register operations only have access to immediates and other registers.
+
+This architecture operates on 16-bit words. Its addresses are 2 words (32-bit) long.
+Two word values are stored in little-endian format
+
+The stack grows up through memory space.
+It follows empty-stack convention
+	-> The stack pointer points to the first available space
+As the stack pointer is just a regular 32-bit register pair, it must be manually set
+to the desired stack start address during the reset routine.
+Only P (the lower half of SP, index 1011) is incremented or decremented during a stack operation.
+Therefore, the stack wraps around and has a size of 64kw
+
+For convenience, the processor executes the instruction 0000 (RST) at startup.
+This instructions sets the program counter to 0x100000, and therefore any startup and
+reset code must be written to address 0x100000.
+The programmer must assume that all registers apart from Z are uninitialized
+upon start up, and therefore the reset routine should preferably initialize them.
+
+[Immediates]
+	Immediate values are 16-bit or 32-bits and stored in the little-endian format.
+
+[Register]
+    There are 16 16-bit registers just like in 6020/JASPR.
+    They can be paired up with their adjacent register to form 32 bit register pairs.
+    (The adjacent register index can be found by XORing 0b0001)
+    The second letter of a pair is the bottom register, and it is used as the base index.
+    
+    - 6 16-bit GPR (A-B, C-D, E-G)
+        - Indices 0000 through 0101
+    - The 32-bit instruction start pointer (M-L)
+        - Indices 0110 and 0111
+    - A 32-bit index register (X-Y)
+        - Indices 1000 and 1001
+    - A 32-bit stack pointer (S-P)
+        - Indices 1010 and 1011
+    - A 32-bit base pointer (U-V)
+        - Indices 1100 and 1101
+    - A 16-bit flag register (F)
+        - Index 1110
+    - A 16-bit zero read-only register (Z)
+        - Index 1111
+    
+    The zero register Z discards any writes and always outputs 0.
+    The ML register is volatile (changes at every instruction), read-only and refers to the start of the current instruction
+    
+    The flag register stores flags in its lower 8-bits as such:
+        NCOI-TSZ
+        N = Negative
+        C = Carry
+        O = Overflow
+        I = Interrupt Enable
+        T = Trap
+        S = Signal (user-defined)
+        Z = Zero
+
+[Memory Addressing]
+	An effective address can be calculated by adding the contents of
+	a register and an optional immediate.
+	
+	The register can be a single 16-bit register, or a 32-bit register pair.
+	As for the immediate value, either it's not included, 16-bit or 32-bit.
+	This gives a total of 6 possibilities.
+	
+	16-bit values are sign-extended to 32-bits to allow proper offsetting.
+	
+	Due to size limitations, the "MVM(L) mem, mem" operation (Move from memory)
+	only supports two addressing mode:
+		EA = %reg16+imm32
+		EA = %reg32+imm32
+	With these two modes, all other modes can be simulated, at the cost of space.
+
+[Encoding]
+	Instruction Length: Between 1 and 5 words
+	
+	The first word contains an 8-bit opcode and two 4-bit indices for registers.
+	+--------+----+----+
+	| OPCODE |SRC |DST |
+	+--------+----+----+
+	
+	For jump instructions, the SRC bits of the word represent a condition code:
+	0000: JL  -> N      (Jump if less than)
+		  JN            (Jump if negative)
+	0001: JGE -> ~N     (Jump if greater than or equal)
+		  JP            (Jump if positive)
+	0010: JEQ -> Z      (Jump if equal)
+		  JZ            (Jump if zero)
+	0011: JNE -> ~Z     (Jump if not equal)
+	      JNZ           (Jump if not zero)
+	0100: JV  -> O      (Jump if overflow)
+	0101: JNV -> ~O     (Jump if not overflow)
+	0110: JC  -> C      (Jump if carry)
+	0111: JNC -> ~C     (Jump if not carry)
+	1000: JLE -> N|Z    (Jump if less than or equal to)
+	1001: JG  -> ~(N|Z) (Jump if greater than)
+	1010: JI  -> I      (Jump if interrupt enabled)
+	1011: JNI -> ~I     (Jump if interrupt disabled)
+	1100: JS  -> S      (Jump if signal)
+	1101: JNS -> ~S     (Jump if not signal)
+	1110: JMP -> Always (Always jump)
+	1111: JNR -> Never  (Never jump, unused)
+	
+	This gives the first word of a JMP instruction the format:
+	+--------+----+----+
+	|JUMP    |COND|REG |
+	+--------+----+----+
+	
+	Immediate values are stored in little-endian format after the first word.
+	If an immediate is present for both the source and destination (i.e. in MVM mem mem),
+	then the source immediate is stored before the destination immediate.
+
+[Interrupts]
+	The interrupt vector table (IVT) is a table of 512 2-word addresses.
+	It starts at memory address 0x140000 and ends at 0x1403FF
+	It is generally used by the INT instruction, whose 9-bit argument is multiplied by two (addresses are 2 words long.)
+	
+	The 1st interrupt vector (addresses 0x140000-0x140001) links to the hardware interrupt handler.
+	The 2nd interrupt vector (addresses 0x140002-0x140003) links to the trap interrupt handler. (NMI)
+	The 511th interrupt vector (addresses 0x1403FC-0x1403FD) is a non-maskable timer
+	The 512th interrupt vector (addresses 0x1403FE-0x1403FF) is a fatal NMI
+	All other interrupt vectors are up to the programmer.
+	
+	When the Trap (T) flag is set, the CPU will automatically call INT 1 after each instruction regardless of the Interrupt Enable (I) flag.
+
+[Instructions List]
+	[ALU] 29
+	ADD   %reg16, #imm16
+	ADD   %reg16, %reg16
+	ADC   %reg16, #imm16
+	ADC   %reg16, %reg16
+	SUB   %reg16, #imm16
+	SUB   %reg16, %reg16
+	SBC   %reg16, #imm16
+	SBC   %reg16, %reg16
+	AND   %reg16, #imm16
+	AND   %reg16, %reg16
+	OR    %reg16, #imm16
+	OR    %reg16, %reg16
+	XOR   %reg16, #imm16
+	XOR   %reg16, %reg16
+	NAND  %reg16, #imm16
+	NAND  %reg16, %reg16
+	NOR   %reg16, #imm16
+	NOR   %reg16, %reg16
+	XNOR  %reg16, #imm16
+	XNOR  %reg16, %reg16
+	CMP   %reg16, #imm16
+	CMP   %reg16, %reg16
+	INC   %reg16
+	DEC   %reg16
+	NOT   %reg16
+	LSL   %reg16
+	LSR   %reg16
+	ROL   %reg16
+	ROR   %reg16
+	
+	[STACK]
+PUSH 16
+	PSH  %reg16, %ptr=%SP
+	PSHL %reg32, %ptr=%SP
+	PHI  #imm16, %ptr=%SP
+	PHIL #imm32, %ptr=%SP
+	PHM  $(ea),  %ptr=%SP
+	PHML $(ea),  %ptr=%SP
+POP 14
+	POP   %reg16, %ptr=%SP
+	POPL  %reg32, %ptr=%SP
+	PPM   $(ea),  %ptr=%SP
+	PPML  $(ea),  %ptr=%SP
+	
+	[MEMORY]
+MOV 14
+	MOV   %reg16, %reg16
+	MOVL  %reg32, %reg32
+	MOV   $(ea),  %reg16
+	MOVL  $(ea),  %reg32
+MOVI 14
+	MVI   %reg16, %imm16
+	MVIL  %reg32, %imm32
+	MVI   $(ea),  %imm16
+	MVIL  $(ea),  %imm32
+MOVM 20
+	MVM   %reg16, $(ea)
+	MVML  %reg32, $(ea)
+	MVM   $(ea),  $(ea)
+	MVML  $(ea),  $(ea)
+
+	[FUNCTION] 7
+	CALL  ea
+	RET
+	
+	[JUMP] 6
+	Jcc   ea
+	
+	[INT] 3
+	INT   imm9
+	INT   reg9
+	RTI
+	
+	[MISC] 5
+	RST
+	NOP
+	SWP   %reg16
+	SWPL  %reg32
+	HLT
+
+[Instruction Description]
+
+RST
+		Jump to 0x100000
+	
+	0x100000 -> PC
+	
+	NCOI TSZ
+	---- ---
+	
+	OP | B | ASM
+	---+---+----
+	00 | 1 | RST
+
+Jcc
+		Jump on condition met.
+		SRC bits represent the condition.
+		DST bits represent the register used to get the effective address (EA)
+	
+	EA_DST -> PC
+	
+	NCOI TSZ
+	---- ---
+	
+	OP | B | ASM
+	---+---+-----------------
+	08 | 1 | Jcc %dst16
+	09 | 1 | Jcc %dst32
+	0A | 2 | Jcc %dst16+imm16
+	0B | 2 | Jcc %dst32+imm16
+	0C | 3 | Jcc %dst16+imm32
+	0D | 3 | Jcc %dst32+imm32
+
+CALL
+		Push the current program counter to stack and jump to subroutine.
+		DST bits represent the register used to get the effective address (EA)
+		The 32-bit stack pointer SP (1011) is used to point to the stack.
+	
+	PC -> *SP; EA_DST -> PC
+	
+	NCOI TSZ
+	---- ---
+	
+	OP | B | ASM
+	---+---+------------------
+	28 | 1 | CALL %dst16
+	29 | 1 | CALL %dst32
+	2A | 2 | CALL %dst16+imm16
+	2B | 2 | CALL %dst32+imm16
+	2C | 3 | CALL %dst16+imm32
+	2D | 3 | CALL %dst32+imm32
+
+RET
+		Pop the program counter from stack, return from subroutine.
+		The 32-bit stack pointer SP (1011) is used to point to the stack.
+		
+	*SP -> PC
+	
+	NCOI TSZ
+	---- ---
+	
+	OP | B | ASM
+	---+---+----
+	20 | 1 | RET
+
+INT
+		Push the flag register and the program counter, reset all flags and jump to an interrupt routine.
+		If the operand is a register, its index is in the DST bits.
+		The lower 9 bits of the operand are taken as one of 512 interrupt vectors.
+		Please refer to the Interrupt section for more information
+		The 32-bit stack pointer SP (1011) is used to point to the stack.
+	
+	F -> *SP; PC -> *SP; IVT[SRC9] -> PC
+	
+	NCOI TSZ
+	++++ +++
+	
+	OP | B | ASM
+	---+---+----------
+	3E | 2 | INT imm16
+	3F | 1 | INT dst16
+
+RTI
+		Pop the program counter and flag register from stack, return from interrupt.
+		The 32-bit stack pointer SP (1011) is used to point to the stack.
+		
+	*SP -> PC; *SP -> F
+	
+	NCOI TSZ
+	++++ +++
+	
+	OP | B | ASM
+	---+---+----
+	30 | 1 | RTI
+
+ADD
+		Add two values.
+		The result is stored in DST
+		
+	DST + SRC -> DST
+	
+	NCOI TSZ
+	+++- --+
+	
+	OP | B | ASM
+	---+---+-------------------
+	40 | 2 | ADD %dst16, imm16
+	41 | 1 | ADD %dst16, %src16
+
+SUB
+		Subtract two values.
+		The minuend is stored in DST
+		The subtrahend is stored in SRC
+		The result is stored in DST
+	
+	DST - SRC -> DST
+	
+	NCOI TSZ
+	+++- --+
+	
+	OP | B | ASM
+	---+---+-------------------
+	50 | 2 | SUB %dst16, imm16
+	51 | 1 | SUB %dst16, %src16
+
+ADC
+		Add two values with carry
+		The result is stored in DST
+		
+	DST + SRC + C -> DST
+	
+	NCOI TSZ
+	+++- --+
+	
+	OP | B | ASM
+	---+---+-------------------
+	42 | 2 | ADC %dst16, imm16
+	43 | 1 | ADC %dst16, %src16
+
+SBC
+		Subtract two values with borrow.
+		The minuend is stored in DST
+		The subtrahend is stored in SRC
+		The result is stored in DST
+	
+	DST - SRC - C -> DST
+	
+	NCOI TSZ
+	+++- --+
+	
+	OP | B | ASM
+	---+---+-------------------
+	52 | 2 | SBC %dst16, imm16
+	53 | 1 | SBC %dst16, %src16
+
+CMP
+		Compare two values and set flags.
+		The minuend is stored in DST
+		The subtrahend is stored in SRC
+		The result is not stored.
+	
+	DST - SRC
+	
+	NCOI TSZ
+	+++- --+
+	
+	OP | B | ASM
+	---+---+-------------------
+	54 | 2 | CMP %dst16, imm16
+	55 | 1 | CMP %dst16, %src16
+
+INC
+		Increment a register.
+		DST represents the register to increment.
+	
+	DST + 1 -> DST
+	
+	NCOI TSZ
+	+++- --+
+	
+	OP | B | ASM
+	---+---+-----------
+	47 | 1 | INC %dst16
+
+DEC
+		Decrement a register.
+		DST represents the register to decrement.
+	
+	DST - 1 -> DST
+	
+	NCOI TSZ
+	+++- --+
+	
+	OP | B | ASM
+	---+---+-----------
+	57 | 1 | DEC %dst16
+
+AND
+		Logical AND two values.
+		The result is stored in DST
+	
+	DST & SRC -> DST
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+-------------------
+	48 | 2 | AND %dst16, imm16
+	49 | 1 | AND %dst16, %src16
+
+NAND
+		Logical NAND two values.
+		The result is stored in DST
+	
+	~(DST & SRC) -> DST
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+--------------------
+	58 | 2 | NAND %dst16, imm16
+	59 | 1 | NAND %dst16, %src16
+
+OR
+		Logical OR two values.
+		The result is stored in DST
+	
+	DST | SRC -> DST
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+------------------
+	4A | 2 | OR %dst16, imm16
+	4B | 1 | OR %dst16, %src16
+
+NOR
+		Logical NOR two values.
+		The result is stored in DST
+	
+	~(DST | SRC) -> DST
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+-------------------
+	5A | 2 | NOR %dst16, imm16
+	5B | 1 | NOR %dst16, %src16
+
+XOR
+		Logical XOR two values.
+		The result is stored in DST
+	
+	DST ^ SRC -> DST
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+-------------------
+	4C | 2 | XOR %dst16, imm16
+	4D | 1 | XOR %dst16, %src16
+
+XNOR
+		Logical XNOR two values.
+		The result is stored in DST
+	
+	~(DST ^ SRC) -> DST
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+--------------------
+	5C | 2 | XNOR %dst16, imm16
+	5D | 1 | XNOR %dst16, %src16
+
+NOT
+		Invert DST.
+	
+	~DST -> DST
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+-----------
+	5F | 1 | NOT %dst16
+
+LSL
+		Shift DST logically left.
+		The bit that is shifted out is saved in the carry flag.
+	
+	DST * 2 -> DST
+	
+	NCOI TSZ
+	++-- --+
+	
+	OP | B | ASM
+	---+---+-----------
+	69 | 1 | LSL %dst16
+
+LSR
+		Shift DST logically right.
+		The bit that is shifted out is saved in the carry flag.
+	
+	DST // 2 -> DST
+	
+	NCOI TSZ
+	++-- --+
+	
+	OP | B | ASM
+	---+---+-----------
+	79 | 1 | LSR %dst16
+
+ROL
+		Shift DST cyclically left.
+		The bit that is shifted out is copied to the carry flag.
+		NOTE: This is an 8-bit shift, not 9-bit with the carry flag.
+			  The carry flag simply copies the pre-shift 8th bit.
+	
+	ROL(DST) -> DST
+	
+	NCOI TSZ
+	++-- --+
+	
+	OP | B | ASM
+	---+---+-----------
+	6B | 1 | ROL %dst16
+
+ROR
+		Shift DST cyclically right.
+		The bit that is shifted out is copied to the carry flag.
+		NOTE: This is an 8-bit shift, not 9-bit with the carry flag.
+			  The carry flag simply copies the pre-shift 1st bit.
+	
+	ROR(DST) -> DST
+	
+	NCOI TSZ
+	++-- --+
+	
+	OP | B | ASM
+	---+---+-----------
+	7B | 1 | ROR %dst16
+
+SWP(L)
+		Swap the top and bottom halves of DST.
+		For the 16-bit version, this swaps the top and bottom bytes.
+		For the 32-bit version, this swaps the index and adjacent register.
+		
+	SRC_HI <-> DST_LO
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+------------
+	6F | 1 | SWP %dst16
+	7F | 1 | SWPL %dst32
+
+MOV(L)
+		Move a value from SRC to either a memory location or DST
+		If the destination is memory, then DST is used to calculate the effective address (EA)
+		Otherwise, the result is stored in DST
+	
+	SRC -> DST/MEM[EA_DST]
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+-------------------------------
+	80 | 1 | MOV  $(%dst16),         %src16
+	81 | 1 | MOV  $(%dst32),         %src16
+	82 | 2 | MOV  $(%dst16+imm16),   %src16
+	83 | 2 | MOV  $(%dst32+imm16),   %src16
+	84 | 3 | MOV  $(%dst16+imm32),   %src16
+	85 | 3 | MOV  $(%dst32+imm32),   %src16
+	87 | 1 | MOV  %dst16, %src16
+	90 | 1 | MOVL $32(%dst16),       %src32
+	91 | 1 | MOVL $32(%dst32),       %src32
+	92 | 2 | MOVL $32(%dst16+imm16), %src32
+	93 | 2 | MOVL $32(%dst32+imm16), %src32
+	94 | 3 | MOVL $32(%dst16+imm32), %src32
+	95 | 3 | MOVL $32(%dst32+imm32), %src32
+	97 | 1 | MOVL %dst32, %src32
+
+MVI(L)
+		Move an immediate value to either a memory location or DST
+		If the destination is memory, then DST is used to calculate the effective address (EA)
+		Otherwise, the result is stored in DST
+	
+	imm -> DST/MEM[EA_DST]
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+------------------------------
+	A0 | 2 | MVI  $(%dst16),         imm16
+	A1 | 2 | MVI  $(%dst32),         imm16
+	A2 | 3 | MVI  $(%dst16+imm16),   imm16
+	A3 | 3 | MVI  $(%dst32+imm16),   imm16
+	A4 | 4 | MVI  $(%dst16+imm32),   imm16
+	A5 | 4 | MVI  $(%dst32+imm32),   imm16
+	A7 | 2 | MVI  %dst16, imm16
+	B0 | 3 | MVIL $32(%dst16),       imm32
+	B1 | 3 | MVIL $32(%dst32),       imm32
+	B2 | 4 | MVIL $32(%dst16+imm16), imm32
+	B3 | 4 | MVIL $32(%dst32+imm16), imm32
+	B4 | 5 | MVIL $32(%dst16+imm32), imm32
+	B5 | 5 | MVIL $32(%dst32+imm32), imm32
+	B7 | 3 | MVIL %dst32, imm32
+
+MVM(L)
+		Move a value from memory to either another memory location or DST
+		The SRC bits are used to calculate the effective address of the source memory location
+		If the destination is memory, then DST is used to calculate the effective address (EA)
+		Otherwise, the result is stored in DST
+	
+	MEM[EA_SRC] -> DST/MEM[EA_DST]
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+--------------------------------------
+	C0 | 1 | MVM  %dst16, $(%dst16)
+	C1 | 1 | MVM  %dst16, $(%dst32)
+	C2 | 2 | MVM  %dst16, $(%dst16+imm16)
+	C3 | 2 | MVM  %dst16, $(%dst32+imm16)
+	C4 | 3 | MVM  %dst16, $(%dst16+imm32)
+	C5 | 3 | MVM  %dst16, $(%dst32+imm32)
+	D0 | 1 | MVML %dst32, $32(%dst16)
+    D1 | 1 | MVML %dst32, $32(%dst32)
+    D2 | 2 | MVML %dst32, $32(%dst16+imm16)
+    D3 | 2 | MVML %dst32, $32(%dst32+imm16)
+    D4 | 3 | MVML %dst32, $32(%dst16+imm32)
+    D5 | 3 | MVML %dst32, $32(%dst32+imm32)
+	
+	E0 | 5 | MVM  $(%dst16+imm32), $(%src16+imm32)
+	E1 | 5 | MVM  $(%dst16+imm32), $(%src32+imm32)
+	E2 | 5 | MVM  $(%dst32+imm32), $(%src16+imm32)
+	E3 | 5 | MVM  $(%dst32+imm32), $(%src32+imm32)
+    F0 | 5 | MVML $32(%dst16+imm32), $32(%src16+imm32)
+    F1 | 5 | MVML $32(%dst16+imm32), $32(%src32+imm32)
+    F2 | 5 | MVML $32(%dst32+imm32), $32(%src16+imm32)
+    F3 | 5 | MVML $32(%dst32+imm32), $32(%src32+imm32)
+
+PSH(L)
+		Push SRC to a stack
+		The SRC bits specify the register to push
+		The DST bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
+	
+	SRC -> *ptr
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+    ---+---+----------------------
+	8F | 1 | PSH  %src16, %ptr=%SP
+	9F | 1 | PSHL %src32, %ptr=%SP
+	
+	
+PHI(L)
+		Push an immediate value to a stack
+		The DST bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
+	
+	imm -> *ptr
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+    ---+---+---------------------
+	8E | 2 | PHI  imm16, %ptr=%SP
+	9E | 3 | PHIL imm32, %ptr=%SP
+	
+PHM(L)
+		Push a value from memory to a stack.
+		The SRC bits are used to calculate the effective address of the source memory location
+		The DST bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
+	
+	MEM[EA_SRC] -> *ptr 
+	
+	NCOI TSZ
+	+--- --+
+
+	OP | B | ASM
+    ---+---+---------------------------------
+	88 | 1 | PHM  $(%src16),         %ptr=%SP
+	89 | 1 | PHM  $(%src32),         %ptr=%SP
+	8A | 2 | PHM  $(%src16+imm16),   %ptr=%SP
+	8B | 2 | PHM  $(%src32+imm16),   %ptr=%SP
+	8C | 3 | PHM  $(%src16+imm32),   %ptr=%SP
+	8D | 3 | PHM  $(%src32+imm32),   %ptr=%SP
+	98 | 1 | PHML $32(%src16),       %ptr=%SP
+	99 | 1 | PHML $32(%src32),       %ptr=%SP
+	9A | 2 | PHML $32(%src16+imm16), %ptr=%SP
+	9B | 2 | PHML $32(%src32+imm16), %ptr=%SP
+	9C | 3 | PHML $32(%src16+imm32), %ptr=%SP
+	9D | 3 | PHML $32(%src32+imm32), %ptr=%SP
+
+POP(L)
+		Pop a value from a stack into DST
+		The SRC bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
+		The DST bits specify which registers to pop into
+		
+	*ptr -> DST
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+----------------------
+	AF | 1 | POP  %dst16, %ptr=%SP
+	BF | 1 | POPL %dst32, %ptr=%SP
+
+PPM(L)
+		Pop a value from stack into memory
+		The SRC bits specify which 32-bit register pair t ouse as a stack pointer (default is SP (1011))
+		The DST bits are used to calculate the effective address of the destination
+		
+	*ptr -> MEM[EA_DST]
+	
+	NCOI TSZ
+	+--- --+
+	
+	OP | B | ASM
+	---+---+---------------------------------
+	A8 | 1 | PPM  $(%dst16),         %ptr=%SP
+	A9 | 1 | PPM  $(%dst32),         %ptr=%SP
+	AA | 2 | PPM  $(%dst16+imm16),   %ptr=%SP
+	AB | 2 | PPM  $(%dst32+imm16),   %ptr=%SP
+	AC | 3 | PPM  $(%dst16+imm32),   %ptr=%SP
+	AD | 3 | PPM  $(%dst32+imm32),   %ptr=%SP
+	B8 | 1 | PPML $32(%dst16),       %ptr=%SP
+	B9 | 1 | PPML $32(%dst32),       %ptr=%SP
+	BA | 2 | PPML $32(%dst16+imm16), %ptr=%SP
+	BB | 2 | PPML $32(%dst32+imm16), %ptr=%SP
+	BC | 3 | PPML $32(%dst16+imm32), %ptr=%SP
+	BD | 3 | PPML $32(%dst32+imm32), %ptr=%SP
+
+NOP
+		Do nothing
+		
+	--
+	
+	NCOI TSZ
+	---- ---
+	
+	OP | B | ASM
+	---+---+----
+	EF | 1 | NOP
+	
+HLT
+		Halt the CPU until the next interrupt
+		If executed while the interrupt enable flag is off, halts the CPU until reset.
+	
+	--
+	
+	NCOI TSZ
+	---- ---
+	
+	OP | B | ASM
+	---+---+----
+	FF | 1 | HLT

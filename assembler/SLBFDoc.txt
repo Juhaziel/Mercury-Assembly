@@ -1,0 +1,218 @@
+Simplified Linkable Binary Format
+
+The SLB format is a simplified version of the ELF file format.
+It is used as the output format of the assembler and linker.
+The assembler generates object files, while the linker takes object files and links them into one executable.
+This file format is little-endian.
+
+An SLBF file consists of:
+	A header
+	A section header table
+	Sections
+
+The SLBF header is first in the file and has a fixed size
+The section headers in the section header table also have a fixed size.
+The sections, however, may be completely arbitrary.
+All multi-word values are stored in little-endian order, regardless 
+
+[SLBF Header - 16W]
+	Always located at the start of the file, the SLBF header contains the following entries:
+
+h_ident - 3W
+	This is an array of 8 words containing identifying information on the file
+	The first three words are a packed 'SLBF\r\n' string.
+		0: 534Ch -> 'SL'
+		1: 4246h -> 'BF'
+		2: 0D0Ah -> '\r\n'
+
+h_type - 1W
+	Represents the type of file. There are two predefined values
+		0: Invalid file
+		1: Object file (Output of the assembler)
+		2: Executable (Output of the linker)
+	Other values may be OS-dependant.
+
+h_version - 1W
+	Represents a version number for the SLBF file.
+		0: invalid version
+		1: original version
+	2-63 are reserved for improvements
+	Any other value is extension-dependant
+
+h_entry - 2W
+	Index of the entry symbol.
+	0 for non-executables.
+
+h_shoff - 2W
+	Represents the offset of the section header table from the start of the file.
+
+h_hsize - 1W
+	Size of the header, in words.
+	This should be 16 words.
+	
+h_shentsize - 1W
+	Size of a section header, in words. All section headers are the same size.
+	This should be 16 words
+
+h_shnum - 1W
+	Number of sections headers (and sections).
+
+h_shstrndx - 1W
+	Index into the section header table of the section name string table (@shstrtab)
+
+h_symtabndx - 1W
+	Index into the section header table of the symbol table (@symtab)
+
+h_hashtabndx - 1W
+	Index into the section header table of the hash table (@hashtab)
+
+(padding) - 1W
+
+
+[Section Header - 16W]
+	Each section has an associated section header in the section header table.
+	Counting starts at 1, 0 is the UNDEF section.
+	This table is located at the end of the file.
+
+sh_name - 2W
+	Index into the section name string table (@shrstrtab)
+	Fetches the name of of this section.
+	If this entry is 0, the section has no name.
+
+sh_type - 1W
+	Represents what type of section this section is.
+		0: invalid section
+		1: program data (user-accessible sections with an image)
+		2: nobits (user-accessible section with no image)
+		3: symbol table (only one per file)
+		4: string table
+		5: relocation table
+		6: hash table (only one per file)
+	7-31 are reserved for any further updates.
+	Everything else is OS-dependant.
+
+sh_addr - 2W
+	Virtual address of the section in memory.
+	Should be 0 if the section is not allocatable (sh_type is neither program data nor nobits)
+
+sh_offset - 2W
+	Represents the offset of this section from the beginning of the file.
+	For nobits sections, this represents where the section would have been
+
+sh_size - 2W
+	Represents how wide, in words, the section is.
+	Even if the section is nobits, this represents
+	how much space will be initialized to 0.
+
+sh_link - 2W
+	Represents the index of a related section in the section header table
+	Varies by section type.
+		For symbol tables, represents the associated string table.
+		For reloc tables, represents the associated section.
+	For everything else, this is 0
+
+sh_alval - 1W
+	Defines the value to use as padding.
+	By default, this is 0000h, but EF00h (NOP) is recommended for PROGDAT sections
+
+sh_align - 1W
+	Pads the section to the next 2^b word using sh_alval.
+	By default, this is 0 (No padding)
+
+sh_entsize - 1W
+	Represents the size of 1 entry in a table section.
+	0 if there are no entries or if the size is inconsistent.
+
+(padding) - 2W
+
+
+[Sections]
+	0: INVALID
+		This serves as the undefined section other objects may point to.
+		All attributes are set to 0 (except sh_offset)
+		
+	1: PROGRAM DATA
+		This is a section declared by the user.
+	
+	2: NOBITS
+		This is also a section declared by the user.
+		Unlike PROGRAM DATA, this section's contents are not saved in the SLBF file but
+		instead they are generated as 0000h
+	
+	3: SYMBOL TABLE (@symtab)
+		NOTE: Only one symbol table per file is allowed.
+		This section saves all the symbols and their attributes for the current SLBF file.
+		The first symbol is the undefined symbol, with all values set to 0.
+		sh_link is the index of the symbol string table (@symstrtab)
+		sh_entsize is 8.
+		It is a list of entries with the following structure:
+			s_name - 2W
+				index in a string table for the symbol's name.
+			s_value - 2W
+				The value of the symbol. 
+				For a label, this is its virtual address in the file.
+				For an absolute value, this is its value.
+			s_info - 1W
+				Information about the symbol.
+				Possible values are:
+					0: Local symbol
+					1: Global symbol
+					2: Weak symbol
+					3: External symbol
+				Values 4-31 are reserved for any further updates.
+				Everything else is extension-dependant
+			s_shndx - 1W
+				Index of the section this symbol belongs to.
+				0000 if there is no such section (i.e, the symbol is undefined.).
+				FFFF if the symbol is absolute (i.e, it is never relocated).
+			(padding) - 2W
+	
+	4: STRING TABLE
+		This section encodes null-terminated strings.
+		NOTE: TWO characters are encoded by word, follow the single-quote (') format in the assembler documentation.
+		An index into the string table are positions into its array, not ranks.
+		 -> Index 2 doesn't fetch the 3rd string, it fetches the string starting
+			at the 3rd word and going on until the next null (0x0000) word
+		The first word (0) is always null, since it represent no string or an empty string.
+		The last word	 must, by definition, also always be null.
+	
+	5: RELOC TABLE (@relNAME)
+		Contains relocations for the section specified by sh_link.
+		sh_entsize is 4.
+		Each entry has the following structure:
+			r_offset - 2W
+				Offset into the relocated section.
+			r_symndx - 2W
+				Index in the symbol table of the symbol this relocation handles.
+	
+	6: HASH TABLE (@hashtab)
+		NOTE: Only one hash table per file is allowed
+		The hash table maps strings onto symbol indices.
+		It consists of two arrays, "bucket" and "chain", that both contain symbol table indices.
+		
+		The bucket array contains nbucket entries and the chain array contains nchain.
+		The chain array has the same size as the symbol table array.
+		
+		A hashing function is calculates an index x into bucket (=bucket[x%nbucket]) given a symbol.
+		As with any hashing function, there may be collisions (different strings that have the same bucket).
+		To resolve it, we verify the name of the symbol pointed to by the bucket entry against the original symbol name.
+		If they match, we return the symbol index in bucket.
+		If they do not match, we use the index "y" in bucket to address chain (=chain[y]).
+		chain[y] will then contain the index of the next symbol that possesses the same hash as this one.
+		We repeat this procedure until either the correct symbol or the undefined symbol (0) are found.
+		
+		The section is sructured as such:
+			nbucket - 2W
+			nchain - 2W
+			bucket
+			chain
+		
+		The hashing algorithm is:
+			word hashSymbol(const unsigned word *str, word size) {
+				unsigned word hash = 3911;
+				
+				for (word i = 0; i < size; i++)
+					hash = (hash << 5) - hash + *(str+i); // hash = (31*hash+str[i]) & 0xFFFF
+				
+				return hash;
+			}			

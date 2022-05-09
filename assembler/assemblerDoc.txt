@@ -1,0 +1,332 @@
+MERCURY Assembler Dialect
+
+This document describes the assembly dialect of the MERCURY Assembler.
+Its basic features are:
+	- Commenting
+	- Labelling
+	- Sections
+	- Relocation
+	- Mathematical evaluations
+	- Preprocessor
+
+[Preprocessor]
+	The preprocessor executes preprocessor directives (copy/paste operations) on source code and
+	outputs the modified source code. Source files with preprocessor directives cannot be directly
+	processed by the assembler; they must be run through the preprocessor first.
+	All preprocessor directives are prefixed by # at the beginning of a line.
+	
+	The preprocessor also supports a few operators and functions.
+	
+	Macro operators:
+		- Paste operator [arg1##arg2]
+			Within a macro, concatenates arg1 and arg2.
+		- String concatenation [string1 #arg string2]
+			Transforms arg into a string and concatenates it with surrounding strings.
+			NOTE: if #arg is not surrounded by at least one string, this will error.
+				  To turn arg into a standalone string, please uses '##arg' or "##arg"
+		- Continuation [\]
+			If followed immediately by a newline character, it will ignore that newline character.
+			Allows single-line directives to be split across multiple lines.
+	
+	Conditional operators:
+		- Defined [@var]
+			Returns true (1) if the symbol/macro is defined, or false (0) if it isn't.
+		- Arithmetic operators:
+			- add (x + y)
+			- sub (x - y)
+			- mul (x * y)
+			- div (x / y)
+			- mod (x % y)
+		- Logical operators:
+			- shr (x >> y)
+			- shl (x << y)
+			- not (~x)
+			- and (x & y)
+			- or  (x | y)
+			- xor (x ^ y)
+		- Relational operators:
+			- eq  (x == y)
+			- neq (x ~= y)
+			- lt  (x < y)
+			- lte (x <= y)
+			- gt  (x > y)
+			- gte (x >= y)
+	
+	Except for the defined operator, conditional operators can only be executed with numerical values.
+	== and ~= also support string comparisons.
+	
+	Conditional statements are considered false if its value is an empty string or 0.
+	Otherwise, it is true.
+
+[Statement Structure]
+	The structure of any statement is so:
+		{label:} {mnemonic {operand}} {;comment}
+
+	The label field simply gives a symbolic name to the location in memory corresponding to its line.
+	There must be no whitespace between it and the start of the line and it is to be followed by a colon (:)
+	Usage of the symbol later in code should only use the symbol's name without a colon (:).
+	
+	The mnemonic field consists of any opcode or assembler directive.
+	There must at least be one space before the mnemonic.
+		-> If there's no label, there must still be whitespace before the mnemonic. It cannot begin the line.
+	An assembler directive usually begins with a dot (.) while an opcode does not.
+	
+	The operand field consists of one or more parameters for the mnemonic, so it cannot exist if there is no mnemonic.
+	It must be separated by at least one space from the mnemonic.
+	Operands are separated by commas (,) and whitespace is allowed.
+	
+	The comment field is simply ignored by the assembler.
+	It begins with a semi-colon (;) and can include anything.
+	The comment field ends after a newline.
+	
+	Any line where the label and mnemonic field are missing is a blank line and gets ignored by the assembler.
+	Blank lines can and should be used to separate parts of code and to make reading easier.
+	
+	[EXAMPLE]
+		0		  10		20		  30		40		  50		60
+		label  mnem  operand             comment
+		
+	0	hello: .dw   "Hello world!", 0   ; Writes a null-terminated "Hello world!" to memory
+
+[Symbols/Labels]
+	Symbols allow the programmer to refer to variables, constants or sections by name instead of by address and are often created using labels.
+	
+	They are always treated as 32-bit values unless specified otherwise in the code.
+	
+	Symbol names are generally strings of alpha-numeric characters, but they have a few rules:
+		- They are case-insensitive (Hello, hello, HeLlO are all the same symbol).
+		- They cannot begin with a number.
+		- The only special characters they can include are a dot (.), an underscore (_) and an at sign (@)
+	
+	There are also reserved symbols defined by the assembler that the programmer may use, but not define.
+	These all begin by the at (@) sign. So far, these reserved symbols are:
+		@ip - Current instruction pointer value.
+		@sp - Start address of the current section.
+		
+	Symbols can have multiple types such as:
+		local  - The symbol is defined in and only used in the current file.
+		global - The symbol is defined in this file and can be used by other files.
+		weak   - The symbol is defined in this file and can be used by other files.
+		extern - The symbol is replaced by global symbols from other files.
+	
+	Global and weak symbols of the same name are associated in a first-come first-served basis.
+	Weak symbols allow previously-defined symbols but global symbols throw an error if they are not unique.
+	If an extern symbol's definition is not found during linking, the linker will output an error.
+	
+	Furthermore, symbols can either be:
+		relative - Their value is updated by an offset when their section is relocated in memory.
+		constant - Their value stays the same regardless of relocation.
+
+[Literals]
+	Literals are constant values that are not symbols.
+	There are three types of literals.
+	
+	The first is an integer/number literal that begins with a decimal number.
+	A base for the number can be specified by an optional suffix:
+		b -> bin, numbers are 0-1
+		o -> oct, numbers are 0-7
+		d -> dec, numbers are 0-9
+		h -> hex, numbers are 0-F
+	Decimal base is assumed if there is no suffix.
+	Keep in mind that when the literal begins with A-F, it must be preceded by a 0.
+	
+	The second is a character literal and is another type of number literal.
+	It's a set of one or two ascii characters enclosed in single quotes (')
+	If there is only one character, its ascii value will be stored in the lower 8 bits.
+	If there are two characters, they get stored in big-endian order.
+	Therefore, '\x12\x34' would be stored in memory as 1234h
+		   and '\xFF' would be stored in memory as 00FFh
+	
+	The third is a string literal.
+	If a string is enclosed in single quotes ('), it generates a list of pairs of characters
+		-> 'Hello' becomes 'He', 'll' 'o'
+	If a string is enclosed in double quotes ("), it generates a list of single characters
+		-> "Hello" becomes 'H', 'e' 'l', 'l' 'o'
+	Since string literals generate lists, they are only usable with directives that use lists.
+
+[Mathematics]
+	Mathematical expressions are enclosed by brackets ({}) and can be used in place of other numeric constants.
+	All mathematical expressions are 32-bits and then downsized as needed.
+	
+	Arithmetic operators:
+		- add (x + y)
+		- sub (x - y)
+		- mul (x * y)
+		- div (x / y)
+		- mod (x % y)
+	
+	Logical operators:
+		- shr (x >> y)
+		- shl (x << y)
+		- not (~x)
+		- and (x & y)
+		- or  (x | y)
+		- xor (x ^ y)
+	
+	Relational operators:
+		- eq  (x == y)
+		- neq (x ~= y)
+		- lt  (x < y)
+		- lte (x <= y)
+		- gt  (x > y)
+		- gte (x >= y)
+	Relational operators return 00000000h if false and FFFFFFFFh (-1) if true.
+	
+	Symbols should ideally only be used inside of mathematical expressions if they are constant symbols.
+	If not, the virtual address defined by the assembler will be used and WILL NOT be relocated.
+	Symbols that have not been declared (e.g. extern symbols) will therefore give an error if left undeclared.
+
+[Sections]
+	Sections are the smallest unit of relocatable data in a code file.
+	They can either be user-defined or assembler-defined.
+	Some default user-defined sections include:
+		text - A generic section for code
+		data - A generic section for program data
+		bss  - A generic section for uninitialized programmed data
+	
+	Assembler-defined sections are used to store metadata about the file.
+	These sections contain symbol tables, string tables, relocation data and more.
+	All assembler-defined non-user sections begin with the character @.
+	As such, user-defined sections are not allowed to begin with that character.
+	
+	Since there is no section at the start of the assembly process,
+	any instruction that attempts to write data will error.
+	You must therefore declare a section before any other instruction.
+	
+	Sections cannot be split across the file and must be a full chunk.
+	During linking, sections remained unmerged.
+	However, the linker must make sure different sections don't overlap.
+	If that is the case, then the section occuring later in link-order will be offset to
+		the end of the previous section.
+	For any section containing relocations, its relocation table will be in
+	a section of the same name, but prefixed by @rel
+		text -> @reltext
+		data -> @reldata
+		bss -> @relbss
+
+[Syntax]
+	Immediate/numbers values are not prefixed by anything
+	Memory addresses are enclosed in parenthese (()) that are preceded by $
+	Registers are preceded by percent sign (%).
+	
+	Mathematical expressions are enclosed in brackets ({}).
+	Symbol names are not preceded by anything.
+	
+	More information, along with assembly opcodes, can be found in the CPU documentation.
+
+[Preprocessor Directives]
+	#include filepath
+		Copies the contents of of file "filepath" into the file.
+	
+	#define var [value]
+		Defines a preprocessor symbol "var" with the value "value".
+		All instances of "var" will be replaced by "value" in the file when they are expanded in the file.
+	
+	#xdefine var [value]
+		Defines a preprocessor symbol "var" with the value "value".
+		Immediately replaces all instances of "var" by "value" in the file
+	
+	#undef var
+		Removes the definition of symbol "var"
+	
+	#macro name [arg1, arg2, ...]
+		(code)
+	#endmacro
+		Defines a function macro of name "name[numargs]".
+		Replaces all instances of name(val1, val2, ...) by the code, with arg1, arg2, ... replaced with val1, val2, ...
+	
+	#if condition
+		(code)
+	[#elif condition]
+		(code)
+	[#else]
+		(code)
+	#endif
+		If the condition is met, replaces with the appropriate code.
+		See possible operators in [Preprocessor]
+	
+	#error msg
+		Aborts the preprocessor process with the error code "msg"
+
+[Directives]
+	Directives always begin with a dot (.) and behave similarly to opcodes.
+	They are used to send messages to the assembler and may or may not generate actual data.
+	
+	Here's a list of directives
+	
+	[.global sym1, sym2, ...]
+	Sets symbols sym1, sym2, ... as global symbols.
+	Errors if any component is not a valid label.
+	
+	[.weak sym1, sym2, ...]
+	Sets symbols sym1, sym2, ... as weak symbols.
+	Errors if any parameter is not a valid label.
+	
+	[.extern sym1, sym2, ...]
+	Sets symbols sym1, sym2, ... as external symbols.
+	Errors if any parameter is not a valid label.
+	Errors if any parameter is defined in the file.
+	
+	[.set name value]
+	Defines a constant symbol with name "name" and value "#value".
+	Errors if "name" is not a valid label.
+	Errors if value is not a numeric literal.
+	
+	[.string str]
+	Shortcut for .dec str, 0
+	Writes str to memory at the current instruction pointer value (@ip) and adds a null byte
+	
+	[.dec w1, w2, ...]
+	Writes 16-bit values w1, w2, ... to memory at the current instruction pointer value (@ip)
+	w1, w2, ... are reduced to fit in a 16-bit constant.
+	
+	[.deca a1, a2, ...]
+	Writes 32-bit addresses a1, a2, ... to memory at the current instruction pointer value (@ip)
+	a1, a2, ... are reduced to fit in a 32-bit constant.
+
+	[.pad n, v]
+	Adds n times the value v.
+	n is a positive integer.
+	
+	[.pada n, a]
+	Adds n times the address a.
+	n is a positive integer.
+	
+	[.res n]
+	Shortcut for .pad n, 0
+	Reserves (writes consecutive zeroes) n 16-bit spaces in memory at the current instruction pointer (@ip)
+	
+	[.resa n]
+	Shortcut for .pada n, 0
+	Reserves (writes consecutive zeroes) n 32-bit spaces in memory at the current instruction pointer (@ip)
+	
+	[.org a]
+	Sets the virtual address of the current section to a.
+	Only works if the current section is empty.
+	a is a 32-bit constant
+	
+	[.align b, v]
+	Aligns @ip to be on the next 2^b word of the current section.
+	Pads with value v.
+	b is a positive power of 2.
+	
+	[.section name flags]
+	Creates a new section with name "name" and attributes "flags"
+	Since a section can only be created once, subsequent calls with the same name will error.
+	The section flags are encoded in 2 bits as such:
+		Bit 0: Image     - Section data is loaded from file if flag is present. Otherwise, data is initialized to 0 at runtime.
+		Bit 1: Allocatable - Section is loaded in memory at run-time if flag is present.
+	
+	[.text]
+	Shortcut for ".section text 3"
+	Creates the default section for code.
+	
+	[.data]
+	Shortcut for ".section data 3"
+	Creates the default section for initialized data.
+	Generally uses the .decw and .deca directives.
+	
+	[.bss]
+	Shortcut for ".section bss 2"
+	Creates the default section for data initialized to 0.
+	Generally uses the .resw and .resa directives.
