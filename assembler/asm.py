@@ -347,6 +347,7 @@ def assemble(in_filepath, out_dirpath):
                     if addr["type"] != "abs": raise Exception(".org 1st argument must be defined.")
                     if addr["val"] < _ip.s_value: raise Exception(".org cannot be used to recede backwards. (@ip="+str(_ip.s_value)+", addr="+str(rep["val"])+").")
                     _ip.s_value = addr["val"]
+                    _sp.s_value = _ip.s_value
                     CUR_SECTION_HDR.sh_addr = _ip.s_value
                 elif cmd == ".align":
                     if not CUR_SECTION: raise Exception("Section must be defined when defining data.")
@@ -363,10 +364,9 @@ def assemble(in_filepath, out_dirpath):
                     if rep["val"] < 0: raise Exception(".align 1st argument must be a positive integer")
                     if value["type"] != "abs": raise Exception(".align 2nd argument must be defined.")
                     if not (-0x8000 <= value["val"] < 0x8000): raise Exception(".align 2nd argument must be 16-bit.")
-                    rep = 2**boundary*math.ceil(_sp.s_value/2**boundary) - _sp.s_value
+                    rep = 2**boundary*math.ceil(_ip.s_value/2**boundary) - _ip.s_value
                     CUR_SECTION.words.extend([0]*rep)
-                    _sp.s_value = CUR_SECTION.getSize()
-                    _ip.s_value = _sp.s_value + CUR_SECTION_HDR.sh_addr
+                    _ip.s_value += rep
                 elif cmd == ".section":
                     if len(line["ops"]) != 2: raise Exception(".section expected 2 arguments, got "+str(len(line["ops"]))+".")
                     name = line["ops"][0]
@@ -392,7 +392,7 @@ def assemble(in_filepath, out_dirpath):
                     file.addSection(CUR_SECTION_HDR, CUR_SECTION)
                     REL_SECTION_HDR = None
                     REL_SECTION = None
-                    _sp.s_value = 0
+                    _sp.s_value = _ip.s_value
                 elif cmd == ".text":
                     if len(line["ops"]) != 0: raise Exception(".text expected 0 arguments, got "+str(len(line["ops"]))+".")
                     if SHSTRTAB.containsString("text"): raise Exception("text section already exists.")
@@ -401,7 +401,7 @@ def assemble(in_filepath, out_dirpath):
                     file.addSection(CUR_SECTION_HDR, CUR_SECTION)
                     REL_SECTION_HDR = None
                     REL_SECTION = None
-                    _sp.s_value = 0
+                    _sp.s_value = _ip.s_value
                 elif cmd == ".data":
                     if len(line["ops"]) != 0: raise Exception(".data expected 0 arguments, got "+str(len(line["ops"]))+".")
                     if SHSTRTAB.containsString("data"): raise Exception("data section already exists.")
@@ -410,7 +410,7 @@ def assemble(in_filepath, out_dirpath):
                     file.addSection(CUR_SECTION_HDR, CUR_SECTION)
                     REL_SECTION_HDR = None
                     REL_SECTION = None
-                    _sp.s_value = 0
+                    _sp.s_value = _ip.s_value
                 elif cmd == ".bss":
                     if len(line["ops"]) != 0: raise Exception(".bss expected 0 arguments, got "+str(len(line["ops"]))+".")
                     if SHSTRTAB.containsString("bss"): raise Exception("bss section already exists.")
@@ -419,25 +419,24 @@ def assemble(in_filepath, out_dirpath):
                     file.addSection(CUR_SECTION_HDR, CUR_SECTION)
                     REL_SECTION_HDR = None
                     REL_SECTION = None
-                    _sp.s_value = 0
+                    _sp.s_value = _ip.s_value
                 else:
                     if not CUR_SECTION: raise Exception("Section must be defined when writing data.")
                     if CUR_SECTION_HDR.sh_type != SectionHeader.SHTYPE_PROGDAT: raise Exception("Cannot write to non-PROGDAT section.")
                     ret, relocs = matchInst(cmd, line["ops"])
                     for reloc in relocs:
                         if line["ops"][reloc["opN"]]["itype"] == "mexpr":
-                            MEXPR_RELOCS.append({"offset": _sp.s_value + reloc["offset"],
+                            MEXPR_RELOCS.append({"offset": _ip.s_value - _sp.s_value + reloc["offset"],
                                                  "line": line["ln"],
                                                  "shndx": file.getIDBySection(CUR_SECTION),
                                                  "mexpr": line["ops"][reloc["opN"]]["ival"]})
                         elif line["ops"][reloc["opN"]]["itype"] == "lbl":
-                            relobj = defRel(line["ops"][reloc["opN"]]["ival"], _sp.s_value + reloc["offset"])
+                            relobj = defRel(line["ops"][reloc["opN"]]["ival"], _ip.s_value - _sp.s_value + reloc["offset"])
                             symbol = SYMTAB.getSymbolByID(relobj.r_symndx)
                             ret[reloc["offset"]] = symbol.s_value & 0xFFFF
                             ret[reloc["offset"]+1] = (symbol.s_value >> 16) >> 0xFFFF
                     CUR_SECTION.words.extend(ret)
-                    _sp.s_value = CUR_SECTION.getSize()
-                    _ip.s_value = _sp.s_value + CUR_SECTION_HDR.sh_addr
+                    _ip.s_value += len(ret)
         except Exception as e:
             print("$ - (ERROR) " + str(line["ln"]) + " - " + str(e))
             exit(-1)
