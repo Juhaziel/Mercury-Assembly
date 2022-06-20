@@ -206,7 +206,7 @@ def matchInst(cmd, ops):
             elif flag[0:2] == "id":
                 opN = int(flag[2:])
                 if ops[opN]["itype"] != "abs":
-                    relocs.append({"offset": len(relocs)+1, "opN": opN})
+                    relocs.append({"offset": len(ret), "opN": opN})
                     ret.extend([0, 0])
                 else:
                     ret.append(ops[opN]["ival"] & 0xFFFF)
@@ -242,6 +242,11 @@ def matchInst(cmd, ops):
                 ret[0] &= ~0x00FF
                 ret[0] |= op0["rval"] << 4
                 ret[0] |= op1["rval"]
+        
+        print(cmd, ops)
+        print([f"{x:04X}" for x in ret])
+        print(relocs)
+        print()
         
         return ret, relocs
     raise Exception("Could not find command \""+cmd+"\" in database.")
