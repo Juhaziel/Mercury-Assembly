@@ -243,10 +243,5 @@ def matchInst(cmd, ops):
                 ret[0] |= op0["rval"] << 4
                 ret[0] |= op1["rval"]
         
-        print(cmd, ops)
-        print([f"{x:04X}" for x in ret])
-        print(relocs)
-        print()
-        
         return ret, relocs
     raise Exception("Could not find command \""+cmd+"\" in database.")
