@@ -39,7 +39,7 @@ def link(is_build=False, in_filepaths=[]):
                 SECTION_HEADER, SECTION = ofile.getSection(i)
                 if SECTION_HEADER.sh_type not in [SectionHeader.SHTYPE_PROGDAT, SectionHeader.SHTYPE_NOBITS]: continue
                 
-                if (0 <= new_sectionhdr.sh_addr - SECTION_HEADER.sh_addr < SECTION_HEADER.sh_size) or (0 <= new_sectionhdr.sh_addr + new_sectionhdr.sh_size - SECTION_HEADER.sh_addr < SECTION_HEADER.sh_size):
+                if (new_sectionhdr.sh_addr < SECTION_HEADER.sh_size + SECTION_HEADER.sh_addr) and (new_sectionhdr.sh_addr + new_sectionhdr.sh_size > SECTION_HEADER.sh_addr):
                     # If the new section overlaps with a previous section, relocate.
                     didCorrect = True
                     offset = SECTION_HEADER.sh_addr + SECTION_HEADER.sh_size - new_sectionhdr.sh_addr
