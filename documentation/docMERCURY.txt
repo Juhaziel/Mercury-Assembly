@@ -242,7 +242,7 @@ Jcc
 	0D | 3 | Jcc %dst32+imm32
 
 CALL
-		Push the current program counter to stack and jump to subroutine.
+		Push the program counter (address of next instruction) to stack and jump to subroutine.
 		DST bits represent the register used to get the effective address (EA)
 		The 32-bit stack pointer SP (1011) is used to point to the stack.
 	
@@ -274,7 +274,7 @@ RET
 	20 | 1 | RET
 
 INT
-		Push the flag register and the program counter, reset all flags and jump to an interrupt routine.
+		Push the flag register and the program counter (address of next instruction), reset all flags and jump to an interrupt routine.
 		If the operand is a register, its index is in the DST bits.
 		The lower 9 bits of the operand are taken as one of 512 interrupt vectors.
 		Please refer to the Interrupt section for more information
