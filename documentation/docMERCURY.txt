@@ -565,7 +565,7 @@ SWP(L)
 	SRC_HI <-> DST_LO
 	
 	NCOI TSZ
-	+--- --+
+	---- ---
 	
 	OP | B | ASM
 	---+---+------------
