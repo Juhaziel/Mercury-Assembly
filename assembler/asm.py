@@ -434,7 +434,7 @@ def assemble(in_filepath, out_dirpath):
                             relobj = defRel(line["ops"][reloc["opN"]]["ival"], _ip.s_value - _sp.s_value + reloc["offset"])
                             symbol = SYMTAB.getSymbolByID(relobj.r_symndx)
                             ret[reloc["offset"]] = symbol.s_value & 0xFFFF
-                            ret[reloc["offset"]+1] = (symbol.s_value >> 16) >> 0xFFFF
+                            ret[reloc["offset"]+1] = (symbol.s_value >> 16) & 0xFFFF
                     CUR_SECTION.words.extend(ret)
                     _ip.s_value += len(ret)
         except Exception as e:
