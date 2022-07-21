@@ -125,6 +125,11 @@ upon start up, and therefore the reset routine should preferably initialize them
 	All other interrupt vectors are up to the programmer.
 	
 	When the Trap (T) flag is set, the CPU will automatically call INT 1 after each instruction regardless of the Interrupt Enable (I) flag.
+	The order of importance from most important to least important is:
+		1. Fatal NMI
+		2. Timer NMI
+		3. Trap NMI
+		4. Hardware Interrupts (if interrupt  enabled)
 
 [Instructions List]
 	[ALU] 29
@@ -562,10 +567,14 @@ SWP(L)
 		For the 16-bit version, this swaps the top and bottom bytes.
 		For the 32-bit version, this swaps the index and adjacent register.
 		
+	**	Please note that 32-bit SWPL only checks the N and Z flags for the high word.
+		The low word's flags are overwritten.
+		
+		
 	SRC_HI <-> DST_LO
 	
 	NCOI TSZ
-	---- ---
+	+--- --+
 	
 	OP | B | ASM
 	---+---+------------
@@ -576,6 +585,9 @@ MOV(L)
 		Move a value from SRC to either a memory location or DST
 		If the destination is memory, then DST is used to calculate the effective address (EA)
 		Otherwise, the result is stored in DST
+		
+	**	Please note that 32-bit MOVL only checks the N and Z flags for the high word.
+		The low word's flags are overwritten.
 	
 	SRC -> DST/MEM[EA_DST]
 	
@@ -603,6 +615,9 @@ MVI(L)
 		Move an immediate value to either a memory location or DST
 		If the destination is memory, then DST is used to calculate the effective address (EA)
 		Otherwise, the result is stored in DST
+		
+	**	Please note that 32-bit MVIL only checks the N and Z flags for the high word.
+		The low word's flags are overwritten.
 	
 	imm -> DST/MEM[EA_DST]
 	
@@ -631,6 +646,9 @@ MVM(L)
 		The SRC bits are used to calculate the effective address of the source memory location
 		If the destination is memory, then DST is used to calculate the effective address (EA)
 		Otherwise, the result is stored in DST
+		
+	**	Please note that 32-bit MVML only checks the N and Z flags for the high word.
+		The low word's flags are overwritten.
 	
 	MEM[EA_SRC] -> DST/MEM[EA_DST]
 	
@@ -665,6 +683,9 @@ PSH(L)
 		Push SRC to a stack
 		The SRC bits specify the register to push
 		The DST bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
+		
+	**	Please note that 32-bit PSHL only checks the N and Z flags for the high word.
+		The low word's flags are overwritten.
 	
 	SRC -> *ptr
 	
@@ -680,6 +701,9 @@ PSH(L)
 PHI(L)
 		Push an immediate value to a stack
 		The DST bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
+		
+	**	Please note that 32-bit PHIL only checks the N and Z flags for the high word.
+		The low word's flags are overwritten.
 	
 	imm -> *ptr
 	
@@ -695,6 +719,9 @@ PHM(L)
 		Push a value from memory to a stack.
 		The SRC bits are used to calculate the effective address of the source memory location
 		The DST bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
+		
+	**	Please note that 32-bit PHML only checks the N and Z flags for the high word.
+		The low word's flags are overwritten.
 	
 	MEM[EA_SRC] -> *ptr 
 	
@@ -721,6 +748,9 @@ POP(L)
 		The SRC bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
 		The DST bits specify which registers to pop into
 		
+	**	Please note that 32-bit POPL only checks the N and Z flags for the high word.
+		The low word's flags are overwritten.
+		
 	*ptr -> DST
 	
 	NCOI TSZ
@@ -735,6 +765,9 @@ PPM(L)
 		Pop a value from stack into memory
 		The SRC bits specify which 32-bit register pair t ouse as a stack pointer (default is SP (1011))
 		The DST bits are used to calculate the effective address of the destination
+		
+	**	Please note that 32-bit PPML only checks the N and Z flags for the high word.
+		The low word's flags are overwritten.
 		
 	*ptr -> MEM[EA_DST]
 	
