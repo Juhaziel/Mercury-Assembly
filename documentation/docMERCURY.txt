@@ -585,14 +585,11 @@ MOV(L)
 		Move a value from SRC to either a memory location or DST
 		If the destination is memory, then DST is used to calculate the effective address (EA)
 		Otherwise, the result is stored in DST
-		
-	**	Please note that 32-bit MOVL only checks the N and Z flags for the high word.
-		The low word's flags are overwritten.
 	
 	SRC -> DST/MEM[EA_DST]
 	
 	NCOI TSZ
-	+--- --+
+	---- ---
 	
 	OP | B | ASM
 	---+---+-------------------------------
@@ -616,13 +613,10 @@ MVI(L)
 		If the destination is memory, then DST is used to calculate the effective address (EA)
 		Otherwise, the result is stored in DST
 		
-	**	Please note that 32-bit MVIL only checks the N and Z flags for the high word.
-		The low word's flags are overwritten.
-	
 	imm -> DST/MEM[EA_DST]
 	
 	NCOI TSZ
-	+--- --+
+	---- ---
 	
 	OP | B | ASM
 	---+---+------------------------------
@@ -646,14 +640,11 @@ MVM(L)
 		The SRC bits are used to calculate the effective address of the source memory location
 		If the destination is memory, then DST is used to calculate the effective address (EA)
 		Otherwise, the result is stored in DST
-		
-	**	Please note that 32-bit MVML only checks the N and Z flags for the high word.
-		The low word's flags are overwritten.
 	
 	MEM[EA_SRC] -> DST/MEM[EA_DST]
 	
 	NCOI TSZ
-	+--- --+
+	---- ---
 	
 	OP | B | ASM
 	---+---+--------------------------------------
@@ -683,14 +674,11 @@ PSH(L)
 		Push SRC to a stack
 		The SRC bits specify the register to push
 		The DST bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
-		
-	**	Please note that 32-bit PSHL only checks the N and Z flags for the high word.
-		The low word's flags are overwritten.
 	
 	SRC -> *ptr
 	
 	NCOI TSZ
-	+--- --+
+	---- ---
 	
 	OP | B | ASM
     ---+---+----------------------
@@ -701,14 +689,11 @@ PSH(L)
 PHI(L)
 		Push an immediate value to a stack
 		The DST bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
-		
-	**	Please note that 32-bit PHIL only checks the N and Z flags for the high word.
-		The low word's flags are overwritten.
 	
 	imm -> *ptr
 	
 	NCOI TSZ
-	+--- --+
+	---- ---
 	
 	OP | B | ASM
     ---+---+---------------------
@@ -719,14 +704,11 @@ PHM(L)
 		Push a value from memory to a stack.
 		The SRC bits are used to calculate the effective address of the source memory location
 		The DST bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
-		
-	**	Please note that 32-bit PHML only checks the N and Z flags for the high word.
-		The low word's flags are overwritten.
 	
 	MEM[EA_SRC] -> *ptr 
 	
 	NCOI TSZ
-	+--- --+
+	---- ---
 
 	OP | B | ASM
     ---+---+---------------------------------
@@ -748,13 +730,10 @@ POP(L)
 		The SRC bits specify which 32-bit register pair to use as a stack pointer (default is SP (1011))
 		The DST bits specify which registers to pop into
 		
-	**	Please note that 32-bit POPL only checks the N and Z flags for the high word.
-		The low word's flags are overwritten.
-		
 	*ptr -> DST
 	
 	NCOI TSZ
-	+--- --+
+	---- ---
 	
 	OP | B | ASM
 	---+---+----------------------
@@ -766,13 +745,10 @@ PPM(L)
 		The SRC bits specify which 32-bit register pair t ouse as a stack pointer (default is SP (1011))
 		The DST bits are used to calculate the effective address of the destination
 		
-	**	Please note that 32-bit PPML only checks the N and Z flags for the high word.
-		The low word's flags are overwritten.
-		
 	*ptr -> MEM[EA_DST]
 	
 	NCOI TSZ
-	+--- --+
+	---- ---
 	
 	OP | B | ASM
 	---+---+---------------------------------
