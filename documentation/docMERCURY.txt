@@ -118,9 +118,9 @@ upon start up, and therefore the reset routine should preferably initialize them
 	It starts at memory address 0x140000 and ends at 0x1403FF
 	It is generally used by the INT instruction, whose 8-bit argument is multiplied by two (addresses are 2 words long.)
 	
-	It is followed by the 8-bit hardware interrupt offset register (HIOR) at address 0x140400.
-	The HIOR is controlled by the PIC (if present), which will assign it the appropriate handler's offset into the IVT.
-	When there is no PIC to control the value of HIOR, it is expected to be 0, which points to the default hardware handler.
+	It is followed by the 8-bit hardware interrupt dispatcher (HID) at address 0x140400.
+	The HID is controlled by the PIC (if present), which will assign it the appropriate handler's offset into the IVT.
+	When there is no PIC to control the value of HID, it is expected to be 0, which points to the default hardware handler.
 	
 	Interrupt vector  000     (addresses 0x140000-0x140001) is considered the default hardware handler.
 	Interrupt vector  001     (addresses 0x140002-0x140003) links to the trap interrupt handler. (NMI)
@@ -129,7 +129,7 @@ upon start up, and therefore the reset routine should preferably initialize them
 	Interrupt vectors 100-1FF (addresses 0x140200-0x1403FF) are for arbitrary usage and are accessible to INT as vectors 00 through FF.
 	
 	Please note that the hardware vectors (000-0FF) and software vectors (100-1FF) are indexed separately.
-	During an hardware interrupt, only the lower 8 bits of the HIOR are used to index the first half of the IVT.
+	During an hardware interrupt, only the lower 8 bits of the HID are used to index the first half of the IVT.
 	During a software interrupt, the lower 8 bits of the argument passed to INT will be used as an offset from vector 100:
 		INT 0x00 will call vector 100
 		INT 0x01 will call vector 101
