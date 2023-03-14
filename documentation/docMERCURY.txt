@@ -116,20 +116,32 @@ upon start up, and therefore the reset routine should preferably initialize them
 [Interrupts]
 	The interrupt vector table (IVT) is a table of 512 2-word addresses.
 	It starts at memory address 0x140000 and ends at 0x1403FF
-	It is generally used by the INT instruction, whose 9-bit argument is multiplied by two (addresses are 2 words long.)
+	It is generally used by the INT instruction, whose 8-bit argument is multiplied by two (addresses are 2 words long.)
 	
-	The 1st interrupt vector (addresses 0x140000-0x140001) links to the hardware interrupt handler.
-	The 2nd interrupt vector (addresses 0x140002-0x140003) links to the trap interrupt handler. (NMI)
-	The 511th interrupt vector (addresses 0x1403FC-0x1403FD) is a non-maskable timer
-	The 512th interrupt vector (addresses 0x1403FE-0x1403FF) is a fatal NMI
-	All other interrupt vectors are up to the programmer.
+	It is followed by the 8-bit hardware interrupt offset register (HIOR) at address 0x140400.
+	The HIOR is controlled by the PIC (if present), which will assign it the appropriate handler's offset into the IVT.
+	When there is no PIC to control the value of HIOR, it is expected to be 0, which points to the default hardware handler.
+	
+	Interrupt vector  000     (addresses 0x140000-0x140001) is considered the default hardware handler.
+	Interrupt vector  001     (addresses 0x140002-0x140003) links to the trap interrupt handler. (NMI)
+	Interrupt vectors 002-0FE (addresses 0x140004-0x1401FD) are reserved for other hardware handlers.
+	Interrupt vector  0FF     (addresses 0x1401FE-0x1401FF) is a non-maskable interrupt.
+	Interrupt vectors 100-1FF (addresses 0x140200-0x1403FF) are for arbitrary usage and are accessible to INT as vectors 00 through FF.
+	
+	Please note that the hardware vectors (000-0FF) and software vectors (100-1FF) are indexed separately.
+	During an hardware interrupt, only the lower 8 bits of the HIOR are used to index the first half of the IVT.
+	During a software interrupt, the lower 8 bits of the argument passed to INT will be used as an offset from vector 100:
+		INT 0x00 will call vector 100
+		INT 0x01 will call vector 101
+		...
+		INT 0xFE will call vector 1FE
+		INT 0xFF will call vector 1FF
 	
 	When the Trap (T) flag is set, the CPU will automatically call INT 1 after each instruction regardless of the Interrupt Enable (I) flag.
 	The order of importance from most important to least important is:
-		1. Fatal NMI
-		2. Timer NMI
-		3. Trap NMI
-		4. Hardware Interrupts (if interrupt  enabled)
+		1. NMI
+		2. Trap NMI
+		3. Hardware Interrupts (if interrupt  enabled)
 
 [Instructions List]
 	[ALU] 29
@@ -202,8 +214,8 @@ MOVM 20
 	Jcc   ea
 	
 	[INT] 3
-	INT   imm9
-	INT   reg9
+	INT   imm8
+	INT   reg8
 	RTI
 	
 	[MISC] 5
@@ -281,11 +293,11 @@ RET
 INT
 		Push the flag register and the program counter (address of next instruction), reset all flags and jump to an interrupt routine.
 		If the operand is a register, its index is in the DST bits.
-		The lower 9 bits of the operand are taken as one of 512 interrupt vectors.
+		The lower 8 bits of the operand are taken as one of 256 software interrupt vectors (OR with 0x100).
 		Please refer to the Interrupt section for more information
 		The 32-bit stack pointer SP (1011) is used to point to the stack.
 	
-	F -> *SP; PC -> *SP; IVT[SRC9] -> PC
+	F -> *SP; PC -> *SP; 0 -> F; IVT[0x100 | SRC8] -> PC
 	
 	NCOI TSZ
 	++++ +++
