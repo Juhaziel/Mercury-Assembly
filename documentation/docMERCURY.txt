@@ -115,18 +115,18 @@ upon start up, and therefore the reset routine should preferably initialize them
 
 [Interrupts]
 	The interrupt vector table (IVT) is a table of 512 2-word addresses.
-	It starts at memory address 0x140000 and ends at 0x1403FF
+	It starts at memory address 0x0FF800 and ends at 0x0FFBFF.
 	It is generally used by the INT instruction, whose 8-bit argument is multiplied by two (addresses are 2 words long.)
 	
-	It is followed by the 8-bit hardware interrupt dispatcher (HID) at address 0x140400.
+	It is followed by the 8-bit hardware interrupt dispatcher (HID) at address 0x0FFC00.
 	The HID is controlled by the PIC (if present), which will assign it the appropriate handler's offset into the IVT.
 	When there is no PIC to control the value of HID, it is expected to be 0, which points to the default hardware handler.
 	
-	Interrupt vector  000     (addresses 0x140000-0x140001) is considered the default hardware handler.
-	Interrupt vector  001     (addresses 0x140002-0x140003) links to the trap interrupt handler. (NMI)
-	Interrupt vectors 002-0FE (addresses 0x140004-0x1401FD) are reserved for other hardware handlers.
-	Interrupt vector  0FF     (addresses 0x1401FE-0x1401FF) is a non-maskable interrupt.
-	Interrupt vectors 100-1FF (addresses 0x140200-0x1403FF) are for arbitrary usage and are accessible to INT as vectors 00 through FF.
+	Interrupt vector  000     (addresses 0x0FF800-0x0FF801) is considered the default hardware handler.
+	Interrupt vector  001     (addresses 0x0FF802-0x0FF803) links to the trap interrupt handler. (NMI)
+	Interrupt vectors 002-0FE (addresses 0x0FF804-0x0FF9FD) are reserved for other hardware handlers.
+	Interrupt vector  0FF     (addresses 0x0FF9FE-0x0FF9FF) is a non-maskable interrupt.
+	Interrupt vectors 100-1FF (addresses 0x0FFA00-0x0FFBFF) are for arbitrary usage and are accessible to INT as vectors 00 through FF.
 	
 	Please note that the hardware vectors (000-0FF) and software vectors (100-1FF) are indexed separately.
 	During an hardware interrupt, only the lower 8 bits of the HID are used to index the first half of the IVT.
@@ -142,6 +142,19 @@ upon start up, and therefore the reset routine should preferably initialize them
 		1. NMI
 		2. Trap NMI
 		3. Hardware Interrupts (if interrupt  enabled)
+
+[Execution Timeline]
+	An instruction may be fetched from memory either at the very beginning or very end of an instruction.
+	Here it will be assumed to be fetched at the beginning.
+	
+	1. Set the ML 32-bit register to the current value of PC
+	2. Fetch next instruction
+	3. Save the value of the Trap flag for later evaluation (that way a program cannot silently clear its Trap flag to avoid interruption)
+	4. Decode and execute instruction
+	5. Verify NMI pin. If set, jump to hardware handler 0xFF.
+	6. Otherwise, verify Trap value read at beginning. If set, jump to hardware handler 0x01.
+	7. If Interrupt Enabled is unset, restart cycle with next instruction
+	8. Otherwise, verify INT pin. If set, read the low 8 bits from HID (0x0FFC00) and call the corresponding hardware handler.
 
 [Instructions List]
 	[ALU] 29
