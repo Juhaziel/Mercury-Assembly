@@ -392,8 +392,12 @@ SBC
 		The minuend is stored in DST
 		The subtrahend is stored in SRC
 		The result is stored in DST
+                
+                The borrow flag is the negation/inverse of the carry flag so setting C=1 will be the same as SUB.
 	
-	DST - SRC - C -> DST
+	DST - SRC - B -> DST
+        DST - SRC - 1 + C -> DST
+        DST + ~SRC + C -> DST
 	
 	NCOI TSZ
 	+++- --+
