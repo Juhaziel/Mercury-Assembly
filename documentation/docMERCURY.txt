@@ -570,7 +570,7 @@ LSR
 ROL
 		Shift DST cyclically left.
 		The bit that is shifted out is copied to the carry flag.
-		NOTE: This is an 8-bit shift, not 9-bit with the carry flag.
+		NOTE: This is an 16-bit shift, not 17-bit with the carry flag.
 			  The carry flag simply copies the pre-shift 8th bit.
 	
 	ROL(DST) -> DST
@@ -585,7 +585,7 @@ ROL
 ROR
 		Shift DST cyclically right.
 		The bit that is shifted out is copied to the carry flag.
-		NOTE: This is an 8-bit shift, not 9-bit with the carry flag.
+		NOTE: This is an 16-bit shift, not 17-bit with the carry flag.
 			  The carry flag simply copies the pre-shift 1st bit.
 	
 	ROR(DST) -> DST
