@@ -151,7 +151,7 @@ upon start up, and therefore the reset routine should preferably initialize them
 	PIC Reserved...00020400h-000204FFh...256  W
 		HID..................00020400h.....1  W
 		Reserved...00020401h-000204FFh...255  W
-	Start....................10000000h......  -
+	Start....................100000h........  -
 
 [Execution Timeline]
 	An instruction may be fetched from memory either at the very beginning or very end of an instruction.
@@ -314,13 +314,13 @@ RET
 	20 | 1 | RET
 
 INT
-		Push the flag register and the program counter (address of next instruction), reset all flags and jump to an interrupt routine.
+		Push the program counter (address of next instruction) and the flag register, reset all flags and jump to an interrupt routine.
 		If the operand is a register, its index is in the DST bits.
 		The lower 8 bits of the operand are taken as one of 256 software interrupt vectors (OR with 0x100).
 		Please refer to the Interrupt section for more information
 		The 32-bit stack pointer SP (1011) is used to point to the stack.
 	
-	F -> *SP; PC -> *SP; 0 -> F; IVT[0x100 | SRC8] -> PC
+	PC -> *SP; F -> *SP; 0 -> F; IVT[0x100 | SRC8] -> PC
 	
 	NCOI TSZ
 	++++ +++
