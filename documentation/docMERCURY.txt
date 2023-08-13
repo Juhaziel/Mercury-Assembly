@@ -32,8 +32,8 @@ upon start up, and therefore the reset routine should preferably initialize them
     
     - 6 16-bit GPR (A-B, C-D, E-G)
         - Indices 0000 through 0101
-    - The 32-bit instruction start pointer (M-L)
-        - Indices 0110 and 0111
+    - The 32-bit instruction start pointer (L-M)
+        - Indices 0110 and 0111 (L is the low word, M is the high word)
     - A 32-bit index register (X-Y)
         - Indices 1000 and 1001
     - A 32-bit stack pointer (S-P)
@@ -116,9 +116,10 @@ upon start up, and therefore the reset routine should preferably initialize them
 [Interrupts]
 	The interrupt vector table (IVT) is a table of 512 2-word addresses.
 	It starts at memory address 0x00020000 and ends at 0x000203FF.
-	It is generally used by the INT instruction, whose 8-bit argument is multiplied by two (addresses are 2 words long.)
+	It is generally used by the INT instruction, whose bits 1-9 are used as an offset into the IVT (addresses are 2-word aligned.)
+        Please note that the instructions' argument must be formatted correctly by the programmer, otherwise it will result in undefined behaviour.
 	
-	It is followed by the 8-bit hardware interrupt dispatcher (HID) at address 0x00020400.
+	It is followed by the 9-bit hardware interrupt dispatcher (HID) at address 0x00020400 which is used like the INT instruction's argument.
 	The HID is controlled by the PIC (if present), which will assign it the appropriate handler's offset into the IVT.
 	When there is no PIC to control the value of HID, it is expected to be 0, which points to the default hardware handler.
 	0x020400-0x0204FF is reserved for the HID and other PIC memory-mapped registers.
@@ -130,13 +131,13 @@ upon start up, and therefore the reset routine should preferably initialize them
 	Interrupt vectors 100-1FF (addresses 0x00020200-0x000203FF) are for software usage and are accessible to INT as vectors 00 through FF.
 	
 	Please note that the hardware vectors (000-0FF) and software vectors (100-1FF) are indexed separately.
-	During an hardware interrupt, only the lower 8 bits of the HID are used to index the first half of the IVT.
-	During a software interrupt, the lower 8 bits of the argument passed to INT will be used as an offset from vector 100:
+	During an hardware interrupt, only bits 1-9 of the HID are used to index the first half of the IVT.
+	During a software interrupt, bits 1-9 of the argument passed to INT will be used as an offset from vector 100:
 		INT 0x00 will call vector 100
-		INT 0x01 will call vector 101
+		INT 0x02 will call vector 101
 		...
-		INT 0xFE will call vector 1FE
-		INT 0xFF will call vector 1FF
+		INT 0x1FC will call vector 1FE
+		INT 0x1FE will call vector 1FF
 	
 	When the Trap (T) flag is set, the CPU will automatically call INT 1 after each instruction regardless of the Interrupt Enable (I) flag.
 	The order of importance from most important to least important is:
@@ -237,8 +238,8 @@ MOVM 20
 	Jcc   ea
 	
 	[INT] 3
-	INT   imm8
-	INT   reg8
+	INT   imm9
+	INT   reg9
 	RTI
 	
 	[MISC] 5
@@ -316,11 +317,12 @@ RET
 INT
 		Push the program counter (address of next instruction) and the flag register, reset all flags and jump to an interrupt routine.
 		If the operand is a register, its index is in the DST bits.
-		The lower 8 bits of the operand are taken as one of 256 software interrupt vectors (OR with 0x100).
+		Bits 1 through 9 of the operand are taken as one of 256 software interrupt vectors (OR with 0x100).
+                The programmer MUST format the operand correctly, otherwise behaviour is undefined.
 		Please refer to the Interrupt section for more information
 		The 32-bit stack pointer SP (1011) is used to point to the stack.
 	
-	PC -> *SP; F -> *SP; 0 -> F; IVT[0x100 | SRC8] -> PC
+	PC -> *SP; F -> *SP; 0 -> F; MEM[IVT + SRC16] -> PC
 	
 	NCOI TSZ
 	++++ +++
