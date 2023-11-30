@@ -148,11 +148,11 @@ upon start up, and therefore the reset routine should preferably initialize them
 [Fixed Memory Location]
 	Mercury does not force its users to follow any specific memory map. However, the following locations are hardcoded:
 	
-	IVT............00020000h-000203FFh..1024 KW
+	IVT............00020000h-000203FFh.....1 KW
 	PIC Reserved...00020400h-000204FFh...256  W
 		HID..................00020400h.....1  W
 		Reserved...00020401h-000204FFh...255  W
-	Start....................100000h........  -
+	Start....................00100000h......  -
 
 [Execution Timeline]
 	An instruction may be fetched from memory either at the very beginning or very end of an instruction.
